@@ -31,27 +31,53 @@ namespace StudentExercisesAPI.Controllers
         }
 
         [HttpGet]
-        public async Task<IActionResult> Get()
+        public async Task<IActionResult> Get(string include, string q)
         {
             using (SqlConnection conn = Connection)
             {
                 conn.Open();
                 using (SqlCommand cmd = conn.CreateCommand())
                 {
-                    string command = @"
+
+                    string command = "";
+
+                    string studentsColumns = @"
                         SELECT s.Id AS 'Student Id', 
                         s.firstName AS 'Student First Name', 
-                        s.lastName AS 'Student Last Name', 
-                        s.slackHandle AS 'Slack Handle', 
+                        s.lastName AS 'Student Last Name',
+                        s.slackHandle AS 'Slack Handle',
+                        c.name AS 'Cohort Name', 
+                        c.Id AS 'Cohort Id'";
+                    string studentsTable = "FROM Student s JOIN Cohort c ON s.cohortId = c.Id";
+
+
+                    if (include == "exercise")
+                    {
+                        string includeColumns = @", 
                         e.name AS 'Exercise Name', 
                         e.language AS 'Exercise Language', 
-                        e.Id AS 'Exercise Id', 
-                        c.name AS 'Cohort Name', 
-                        c.Id AS 'Cohort Id' 
-                        FROM Student s 
-                        JOIN Cohort c ON s.cohortId = c.Id 
+                        e.Id AS 'Exercise Id'";
+
+                        string includeTables = @"
                         JOIN StudentExercise se ON s.Id = se.studentId 
-                        JOIN Exercise e ON se.exerciseId=e.Id;";
+                        JOIN Exercise e ON se.exerciseId=e.Id";
+
+                        command = $@"{studentsColumns} 
+                                    {includeColumns} 
+                                    {studentsTable} 
+                                    {includeTables}";
+
+                    }
+                    else
+                    {
+                        command = $"{studentsColumns} {studentsTable}";
+                    }
+
+                    if (q != null)
+                    {
+                        command += $" WHERE s.FirstName LIKE '{q}' OR s.LastName LIKE '{q}' OR s.SlackHandle LIKE '{q}'";
+                    }
+
 
 
                     cmd.CommandText = command;
@@ -60,7 +86,7 @@ namespace StudentExercisesAPI.Controllers
 
                     while (reader.Read())
                     {
-                        
+
                         Student currentStudent = new Student
                         {
                             Id = reader.GetInt32(reader.GetOrdinal("Student Id")),
@@ -75,31 +101,41 @@ namespace StudentExercisesAPI.Controllers
                             },
                         };
 
-                        Exercise currentExercise = new Exercise
-                        {
-                            id = reader.GetInt32(reader.GetOrdinal("Exercise Id")),
-                            Name = reader.GetString(reader.GetOrdinal("Exercise Name")),
-                            Language = reader.GetString(reader.GetOrdinal("Exercise Language"))
 
-                        };
 
-                        // If the student is already on the list, don't add them again!
-                        if (Students.Any(s => s.Id ==  currentStudent.Id))
+                        if (include == "exercise")
+                       
                         {
-                            Student thisStudent = Students.Where(s => s.Id == currentStudent.Id).FirstOrDefault();
-                            thisStudent.Exercises.Add(currentExercise);
+                            Exercise currentExercise = new Exercise
+                            {
+                                id = reader.GetInt32(reader.GetOrdinal("Exercise Id")),
+                                Name = reader.GetString(reader.GetOrdinal("Exercise Name")),
+                                Language = reader.GetString(reader.GetOrdinal("Exercise Language"))
+
+                            };
+
+
+                            // If the student is already on the list, don't add them again!
+                            if (Students.Any(s => s.Id == currentStudent.Id))
+                            { 
+                                Student thisStudent = Students.Where(s => s.Id == currentStudent.Id).FirstOrDefault();
+                                thisStudent.Exercises.Add(currentExercise);
+                            }
+                            else
+                            {
+                                currentStudent.Exercises.Add(currentExercise);
+                                Students.Add(currentStudent);
+
+                            }
 
                         } else
                         {
-                            currentStudent.Exercises.Add(currentExercise);
                             Students.Add(currentStudent);
-                           
                         }
-                        
+
                     }
+
                     reader.Close();
-
-
                     return Ok(Students);
                 }
             }

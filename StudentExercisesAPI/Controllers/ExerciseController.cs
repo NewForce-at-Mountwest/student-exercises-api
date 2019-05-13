@@ -31,15 +31,37 @@ namespace ExerciseExercisesAPI.Controllers
         }
 
         [HttpGet]
-        public async Task<IActionResult> Get()
+        public async Task<IActionResult> Get(string include)
         {
             using (SqlConnection conn = Connection)
             {
                 conn.Open();
                 using (SqlCommand cmd = conn.CreateCommand())
                 {
-                    string command = "SELECT Id, name, language FROM Exercise";
+                    string command = "";
+                    string exerciseColumns = "SELECT e.Id, e.name, e.language";
+                    string exerciseTable = "FROM Exercise e";
 
+                    if (include == "student")
+                    {
+                        string studentColumns = @", 
+                        s.Id AS 'Student Id', 
+                        s.firstName AS 'Student First Name', 
+                        s.lastName AS 'Student Last Name',
+                        s.slackHandle AS 'Slack Handle'";
+                        string studentsTable = @"
+                         JOIN StudentExercise se ON e.Id = se.exerciseId 
+                        JOIN Student s ON se.StudentId=s.Id;";
+                        command = $@"{exerciseColumns} 
+                                    {studentColumns} 
+                                    {exerciseTable} 
+                                    {studentsTable}";
+
+                    }
+                    else
+                    {
+                        command = $"{exerciseColumns} {exerciseTable}";
+                    }
 
                     cmd.CommandText = command;
                     SqlDataReader reader = cmd.ExecuteReader();
@@ -51,12 +73,39 @@ namespace ExerciseExercisesAPI.Controllers
                         Exercise Exercise = new Exercise
                         {
                             id = reader.GetInt32(reader.GetOrdinal("Id")),
-                            Name= reader.GetString(reader.GetOrdinal("name")),
+                            Name = reader.GetString(reader.GetOrdinal("name")),
                             Language = reader.GetString(reader.GetOrdinal("language"))
-                           
+
                         };
 
-                        Exercises.Add(Exercise);
+                        if(include == "student")
+                        {
+                            Student currentStudent = new Student
+                            {
+                                Id = reader.GetInt32(reader.GetOrdinal("Student Id")),
+                                FirstName = reader.GetString(reader.GetOrdinal("Student First Name")),
+                                LastName = reader.GetString(reader.GetOrdinal("Student Last Name")),
+                                SlackHandle = reader.GetString(reader.GetOrdinal("Slack Handle"))
+                            };
+
+                            if (Exercises.Any(e => e.id == Exercise.id))
+                            {
+                                Exercise thisExercise = Exercises.Where(e => e.id == Exercise.id).FirstOrDefault();
+                                thisExercise.assignedStudents.Add(currentStudent);
+                            }
+                            else
+                            {
+                                Exercise.assignedStudents.Add(currentStudent);
+                                Exercises.Add(Exercise);
+
+                            }
+
+                        } else
+                        {
+                            Exercises.Add(Exercise);
+
+                        }
+                        
                     }
                     reader.Close();
 
@@ -91,7 +140,7 @@ namespace ExerciseExercisesAPI.Controllers
                             id = reader.GetInt32(reader.GetOrdinal("Id")),
                             Name = reader.GetString(reader.GetOrdinal("name")),
                             Language = reader.GetString(reader.GetOrdinal("lastName"))
-                            
+
                         };
                     }
                     reader.Close();
