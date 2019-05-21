@@ -1,21 +1,30 @@
-document.querySelector("#add-btn").addEventListener("click", () => {
-    const name = document.querySelector("#cohort-name").value;
-    console.log(name);
-})
 
 
-const getAndPrintCoffees = () => {
-    fetch('https://localhost:5001/api/cohorts')
+const printPersonList = arrayOfPeople => {
+  let personList = "";
+  arrayOfPeople.forEach(
+    person =>
+      (personList += `<li>${person.firstName} ${person.lastName} || Slack handle: ${
+        person.slackHandle
+      }</li>`)
+  );
+  return personList;
+};
+
+const getAndPrintCohorts = () => {
+  fetch("https://localhost:5001/api/cohorts")
     .then(cohorts => cohorts.json())
     .then(parsedCohorts => {
-        console.log(parsedCohorts);
-        // parsedCohorts.forEach(cohorts => {
-        //     document.querySelector("#output").innerHTML += `<div>
-        //         <h5>${cohorts.Name}</h5>
-        //         <p>${cohorts.BeanType}</p>
-        //     </div>`
-        // })
-    })
-}
+      parsedCohorts.forEach(cohort => {
+        document.querySelector("#output").innerHTML += `<div>
+                <h4>${cohort.name}</h4>
+                <h5>Students</h5>
+                <ul>${printPersonList(cohort.studentList)}</ul>
+                <h5>Instructors</h5>
+                <ul>${printPersonList(cohort.instructorList)}</ul>
+            </div>`;
+      });
+    });
+};
 
-getAndPrintCoffees();
+getAndPrintCohorts();
